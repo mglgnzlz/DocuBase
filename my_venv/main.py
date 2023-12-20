@@ -79,7 +79,7 @@ button1 = ttk.Button(contentFrame, text="Retake", width=button_width)
 button1.grid(column=1, row=1, pady=10, padx=5, sticky=(N))
 
 button2 = ttk.Button(contentFrame, text="Add", width=button_width)
-button2.grid(column=1, row=1, pady=10, padx=5, sticky=(E))
+button2.grid(column=1, row=1, pady=10, padx=9, sticky=(E))
 
 button3 = ttk.Button(contentFrame, text="Finish", width=button_width)
 button3.grid(column=1, row=1, pady=10, padx=10, sticky=(W))
