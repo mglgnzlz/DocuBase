@@ -26,7 +26,7 @@ imageFrame = ttk.Frame(contentFrame, borderwidth=2, relief="solid")  # Add borde
 imageFrame.grid(column=0, row=0, rowspan=1, padx=10, pady=10, sticky=(N, S, W, E))
 
 # Image box on the left side
-imageLabel = ttk.Label(imageFrame, text="Image Preview", width=40, anchor='center')
+imageLabel = ttk.Label(imageFrame, text="Camera Preview", width=40, anchor='center')
 imageLabel.grid(column=0, row=0, padx=10, pady=10, sticky=(N, S, W, E))
 
 # Frame for input fields
@@ -72,6 +72,10 @@ var1 = IntVar()
 c1 = ttk.Checkbutton(contentFrame, text='First Page', variable=var1, onvalue=1, offvalue=0)
 c1.grid(column=0, row=1, sticky=(E, S), padx=10, pady=10)
 
+#Capture Image Button
+button4 = ttk.Button (contentFrame, text="Capture", width=10)
+button4.grid(column=0, row=1, pady=10, padx=9, sticky=(W))
+
 # Buttons in one row following the content frame
 button_width = 10  # Set a common width for all buttons
 
@@ -83,5 +87,6 @@ button2.grid(column=1, row=1, pady=10, padx=9, sticky=(E))
 
 button3 = ttk.Button(contentFrame, text="Finish", width=button_width)
 button3.grid(column=1, row=1, pady=10, padx=10, sticky=(W))
+
 
 root.mainloop()
