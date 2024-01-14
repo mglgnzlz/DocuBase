@@ -78,10 +78,15 @@ button_width = 10  # Set a common width for all buttons
 
 #Capture Image Button
 button4 = ttk.Button (contentFrame, text="Capture", width=button_width)
-button4.grid(column=0, row=1, pady=10, padx=9, sticky=(W))
+button4.grid(column=0, row=1, pady=10, padx=10, sticky=(W))
 
+#Add Button UI
 button5 = ttk.Button (contentFrame, text="Add", width=button_width)
-button5.grid(column=0, row=1, pady=10, padx=10, sticky=(N))
+button5.grid(column=0, row=1, pady=10, padx=190, sticky=(W))
+
+#Conversion to PDF button
+button6 = ttk.Button (contentFrame, text="Done", width=button_width)
+button6.grid(column=0, row=1, pady=10, padx=370, sticky=(W))
 
 #Buttons for content side
 button1 = ttk.Button(contentFrame, text="Retake", width=button_width)
@@ -92,6 +97,8 @@ button2.grid(column=1, row=1, pady=10, padx=9, sticky=(E))
 
 button3 = ttk.Button(contentFrame, text="Finish", width=button_width)
 button3.grid(column=1, row=1, pady=10, padx=10, sticky=(W))
+
+#Add Button Function
 
 
 root.mainloop()
