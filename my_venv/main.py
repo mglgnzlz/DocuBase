@@ -17,6 +17,7 @@ def loadAndDisplayImage(filename):
 root = Tk()
 root.title("Document Form")
 
+
 # Frame for the entire content
 contentFrame = ttk.Frame(root, padding=(10, 10, 10, 10))
 contentFrame.grid(column=0, row=0, sticky=(N, S, E, W))
@@ -72,13 +73,17 @@ var1 = IntVar()
 c1 = ttk.Checkbutton(contentFrame, text='First Page', variable=var1, onvalue=1, offvalue=0)
 c1.grid(column=0, row=1, sticky=(E, S), padx=10, pady=10)
 
-#Capture Image Button
-button4 = ttk.Button (contentFrame, text="Capture", width=10)
-button4.grid(column=0, row=1, pady=10, padx=9, sticky=(W))
-
-# Buttons in one row following the content frame
+#Button width for All buttons
 button_width = 10  # Set a common width for all buttons
 
+#Capture Image Button
+button4 = ttk.Button (contentFrame, text="Capture", width=button_width)
+button4.grid(column=0, row=1, pady=10, padx=9, sticky=(W))
+
+button5 = ttk.Button (contentFrame, text="Add", width=button_width)
+button5.grid(column=0, row=1, pady=10, padx=10, sticky=(N))
+
+#Buttons for content side
 button1 = ttk.Button(contentFrame, text="Retake", width=button_width)
 button1.grid(column=1, row=1, pady=10, padx=5, sticky=(N))
 
