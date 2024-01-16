@@ -1,69 +1,155 @@
-from tkinter import *
-from tkinter import ttk, filedialog
+import cv2
+import tkinter as tk
+import os
+from tkinter import IntVar, ttk, filedialog
+from picamera.array import PiRGBArray
+from picamera import PiCamera
 from PIL import Image, ImageTk
 
-def browseImage():
-    filename = filedialog.askopenfilename()
-    if filename:
-        loadAndDisplayImage(filename)
+# Function to update the camera feed
+def update_camera():
+        frame = next(camera.capture_continuous(rawCapture, format="bgr", use_video_port=True))
+        image = frame.array
 
-def loadAndDisplayImage(filename):
-    image = Image.open(filename)
-    image = image.resize((400, 400), resample=Image.LANCZOS)  # Use Lanczos resampling
-    photo = ImageTk.PhotoImage(image)
-    imageLabel.config(image=photo)
-    imageLabel.image = photo
+        # Convert OpenCV image to Tkinter PhotoImage
+        img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(img)
+        img = ImageTk.PhotoImage(img)
 
-root = Tk()
+        # Update the label with the new image
+        cameraView.config(image=img)
+        cameraView.image = img
+
+        key = cv2.waitKey(1) & 0xFF
+        rawCapture.truncate(0)
+
+        if key == ord("q"):
+            root.destroy()
+            return
+
+        root.after(1, update_camera)  # Schedule the next update
+
+
+# Function to capture and save an image
+def capture_image():
+    # Capturing a single frame
+    frame = next(camera.capture_continuous(rawCapture, format="bgr", use_video_port=True))
+    image = frame.array
+
+    # Saving
+    cv2.imwrite("captured_image.jpg", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    
+    # Reset the rawCapture object for the next capture
+    rawCapture.truncate(0)
+
+
+def browse_image():
+    global img
+    file_path = filedialog.askopenfilename(initialdir=os.getcwd(), title="Select Image File",\
+		filetypes=(('JPG file', '*.jpg'), ('PNG file', '*.png'), ('All File', "*.*")))
+    image=Image.open(file_path)
+    resized_image=image.resize((400, 512), Image.BICUBIC)
+    img = ImageTk.PhotoImage(resized_image)
+    previewLabel.config(image=img)
+    previewLabel.image = img
+    
+
+#Conversion of pdf to img
+def convert_images_to_pdf(folder_path, output_pdf_path):
+    images = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+
+    if not images:
+        print("No images found in the selected folder.")
+        return
+
+    images.sort()  # Optional: Sort the images alphabetically
+
+    img_list = [Image.open(os.path.join(folder_path, img)) for img in images]
+    img_list[0].save(output_pdf_path, save_all=True, append_images=img_list[1:])
+
+
+import os
+
+def on_done_button_click():
+    initial_folder = r"C:\\Users\\danica\\OneDrive\\Desktop\\example"
+    folder_path = filedialog.askdirectory(title="Select a folder with images", initialdir=initial_folder)
+    
+    if folder_path:
+        output_folder = r"c:\\Users\\danica\\OneDrive\\Desktop\\done"  # Change this to the desired output folder
+        output_pdf_path = os.path.join(output_folder, "output.pdf")
+        
+        convert_images_to_pdf(folder_path, output_pdf_path)
+        print("Conversion completed successfully!")
+
+
+# Initialize PiCamera
+camera = PiCamera()
+camera.resolution = (400, 512)
+camera.framerate = 30
+rawCapture = PiRGBArray(camera, size=(400, 512))
+
+# Initialize the root widget
+root = tk.Tk()
 root.title("Document Form")
-
 
 # Frame for the entire content
 contentFrame = ttk.Frame(root, padding=(10, 10, 10, 10))
-contentFrame.grid(column=0, row=0, sticky=(N, S, E, W))
+contentFrame.grid(column=0, row=0, sticky=(tk.N, tk.S, tk.E, tk.W))
 
-# Frame for image display
-imageFrame = ttk.Frame(contentFrame, borderwidth=2, relief="solid")  # Add border
-imageFrame.grid(column=0, row=0, rowspan=1, padx=10, pady=10, sticky=(N, S, W, E))
+# Frame & Display the camera preview
+cameraFrame = ttk.LabelFrame(contentFrame, text="Camera Preview")
+cameraFrame.grid(column=0, row=0, padx=10, pady=10, sticky=(tk.N, tk.S, tk.E, tk.W))
+cameraView = ttk.Label(cameraFrame)
+cameraView.grid(column=0, row=0, padx=10, pady=10, sticky=(tk.N, tk.S, tk.E, tk.W))
 
-# Image box on the left side
-imageLabel = ttk.Label(imageFrame, text="Camera Preview", width=40, anchor='center')
-imageLabel.grid(column=0, row=0, padx=10, pady=10, sticky=(N, S, W, E))
+# Capture Button
+captureBFrame = ttk.Frame(cameraFrame, padding=(0, 0, 0, 10))
+captureBFrame.grid(column=0, row=1)
+captureButton = ttk.Button(captureBFrame, text="Capture Image", command=capture_image)
+captureButton.grid(column=0, row=0, sticky=(tk.W, tk.E))
+
+# Frame for right side contents (invisible)
+rightFrame = ttk.Frame(contentFrame)
+rightFrame.grid(column=1, row=0, padx=10, sticky=(tk.N, tk.S, tk.W, tk.E))
 
 # Frame for input fields
-inputFrame = ttk.Frame(contentFrame, borderwidth=2, relief="solid")  # Add border
-inputFrame.grid(column=1, row=0, padx=10, pady=10, sticky=(N, S, W, E))
+inputFrame = ttk.LabelFrame(rightFrame, text="Input Fields")
+inputFrame.grid(column=1, row=0, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
 
-# Labels and Entry fields on the right side
+# Labels and Entry fields
 documentNameLabel = ttk.Label(inputFrame, text="Document Name:")
-documentNameLabel.grid(column=0, row=0, padx=10, pady=(0, 2), sticky=W)
-
+documentNameLabel.grid(column=0, row=0, padx=10, pady=(10, 2), sticky=tk.W)
 documentNameEntry = ttk.Entry(inputFrame)
-documentNameEntry.grid(column=1, row=0, padx=10, pady=(0, 2), sticky=(W, E))
-
+documentNameEntry.grid(column=1, row=0, padx=10, sticky=(tk.W, tk.E))
 dateLabel = ttk.Label(inputFrame, text="Date:")
-dateLabel.grid(column=0, row=1, padx=10, pady=(0, 2), sticky=W)
-
+dateLabel.grid(column=0, row=1, padx=10, pady=(5, 2), sticky=tk.W)
 dateEntry = ttk.Entry(inputFrame)
-dateEntry.grid(column=1, row=1, padx=10, pady=(0, 2), sticky=(W, E))
+dateEntry.grid(column=1, row=1, padx=10, sticky=(tk.W, tk.E))
 
-# Button to browse for an image
-browseButton = ttk.Button(inputFrame, text="Browse Image", command=browseImage)
-browseButton.grid(column=0, row=2, columnspan=2, pady=10, padx=10, sticky=(W, E))
+# Browse Button
+browseButton = ttk.Button(inputFrame, text="Browse Image", command=browse_image)
+browseButton.grid(column=0, row=2, columnspan=2, pady=10, padx=10, sticky=(tk.W, tk.E))
+
+# Frame for image preview
+previewFrame = ttk.LabelFrame(rightFrame, text="Image Preview")
+previewFrame.grid(column=1, row=1, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
+previewLabel = tk.Label(previewFrame, text="Image Preview", width=40, anchor="center")
+previewLabel.grid(column=0, row=0, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
 
 # Column and Row configurations for resizing
-contentFrame.columnconfigure(0, weight=1)  # Allow the first column (image frame) to resize
+# Allow the first column (image frame) to resize
+contentFrame.columnconfigure(0, weight=1)
 contentFrame.columnconfigure(1, weight=1)
 contentFrame.rowconfigure(0, weight=1)
 
-imageFrame.columnconfigure(0, weight=1)  # Allow the image frame to resize
-imageFrame.rowconfigure(0, weight=1)
+cameraFrame.columnconfigure(0, weight=1)  # Allow the image frame to resize
+cameraFrame.rowconfigure(0, weight=1)
 
-inputFrame.columnconfigure(0, weight=1)  # Allow the input frame to resize
-inputFrame.columnconfigure(1, weight=1)
-inputFrame.rowconfigure(0, weight=0)
-inputFrame.rowconfigure(1, weight=0)
-inputFrame.rowconfigure(2, weight=0)
+rightFrame.columnconfigure(0, weight=1)  # Allow the input frame to resize
+rightFrame.columnconfigure(1, weight=1)
+rightFrame.rowconfigure(0, weight=0)
+rightFrame.rowconfigure(1, weight=0)
+rightFrame.rowconfigure(2, weight=0)
 
 root.columnconfigure(0, weight=1)  # Allow the entire window to resize
 root.rowconfigure(0, weight=1)
@@ -71,34 +157,26 @@ root.rowconfigure(0, weight=1)
 # Checkbox under image frame
 var1 = IntVar()
 c1 = ttk.Checkbutton(contentFrame, text='First Page', variable=var1, onvalue=1, offvalue=0)
-c1.grid(column=0, row=1, sticky=(E, S), padx=10, pady=10)
+c1.grid(column=0, row=1, sticky=(tk.E, tk.S), padx=10, pady=10)
 
-#Button width for All buttons
+# Buttons in one row following the content frame
 button_width = 10  # Set a common width for all buttons
 
-#Capture Image Button
-button4 = ttk.Button (contentFrame, text="Capture", width=button_width)
-button4.grid(column=0, row=1, pady=10, padx=10, sticky=(W))
-
-#Add Button UI
-button5 = ttk.Button (contentFrame, text="Add", width=button_width)
-button5.grid(column=0, row=1, pady=10, padx=190, sticky=(W))
-
-#Conversion to PDF button
-button6 = ttk.Button (contentFrame, text="Done", width=button_width)
-button6.grid(column=0, row=1, pady=10, padx=370, sticky=(W))
-
-#Buttons for content side
 button1 = ttk.Button(contentFrame, text="Retake", width=button_width)
-button1.grid(column=1, row=1, pady=10, padx=5, sticky=(N))
+button1.grid(column=1, row=1, pady=10, padx=5, sticky=(tk.N))
 
 button2 = ttk.Button(contentFrame, text="Add", width=button_width)
-button2.grid(column=1, row=1, pady=10, padx=9, sticky=(E))
+button2.grid(column=1, row=1, pady=10, padx=9, sticky=(tk.E))
 
 button3 = ttk.Button(contentFrame, text="Finish", width=button_width)
-button3.grid(column=1, row=1, pady=10, padx=10, sticky=(W))
+button3.grid(column=1, row=1, pady=10, padx=10, sticky=(tk.W))
 
-#Add Button Function
+# Run the camera update function in a separate thread
+root.after(100, update_camera)  # Wait for 100 milliseconds before starting
 
-
+# Start the Tkinter main loop
 root.mainloop()
+
+# Release resources
+cv2.destroyAllWindows()
+camera.close()
