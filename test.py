@@ -1,7 +1,7 @@
 import cv2
 import tkinter as tk
-from tkinter import IntVar
-from tkinter import ttk
+import os
+from tkinter import IntVar, ttk, filedialog
 from picamera.array import PiRGBArray
 from picamera import PiCamera
 from PIL import Image, ImageTk
@@ -35,19 +35,54 @@ def capture_image():
     # Capturing a single frame
     frame = next(camera.capture_continuous(rawCapture, format="bgr", use_video_port=True))
     image = frame.array
-
+    
     # Saving
-    cv2.imwrite("captured_image.png", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    cv2.imwrite("/home/rpig3/docubase/env/bin/mainProg/temp_fldr/captured_image.jpg", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     
     # Reset the rawCapture object for the next capture
     rawCapture.truncate(0)
 
 
+def browse_image():
+    global img
+    file_path = filedialog.askopenfilename(initialdir=os.getcwd(), title="Select Image File",\
+		filetypes=(('JPG file', '*.jpg'), ('PNG file', '*.png'), ('All File', "*.*")))
+    image=Image.open(file_path)
+    image = image.resize((300, 384), resample=Image.LANCZOS)
+    img = ImageTk.PhotoImage(image)
+    previewLabel.config(image=img)
+    previewLabel.image = img
+
+def convert_images_to_pdf(folder_path, output_pdf_path):
+    images = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+
+    if not images:
+        print("No images found in the selected folder.")
+        return
+
+    images.sort()  # Optional: Sort the images alphabetically
+
+    img_list = [Image.open(os.path.join(folder_path, img)) for img in images]
+    img_list[0].save(output_pdf_path, save_all=True, append_images=img_list[1:])
+
+
+def on_done_button_click():
+    initial_folder = r"C:\\Users\\danica\\OneDrive\\Desktop\\example"
+    folder_path = filedialog.askdirectory(title="Select a folder with images", initialdir=initial_folder)
+    
+    if folder_path:
+        output_folder = r"c:\\Users\\danica\\OneDrive\\Desktop\\done"  # Change this to the desired output folder
+        output_pdf_path = os.path.join(output_folder, "output.pdf")
+        
+        convert_images_to_pdf(folder_path, output_pdf_path)
+        print("Conversion completed successfully!")
+
+
 # Initialize PiCamera
 camera = PiCamera()
-camera.resolution = (400, 500)
+camera.resolution = (400, 512)
 camera.framerate = 30
-rawCapture = PiRGBArray(camera, size=(400, 500))
+rawCapture = PiRGBArray(camera, size=(400, 512))
 
 # Initialize the root widget
 root = tk.Tk()
@@ -75,7 +110,7 @@ rightFrame.grid(column=1, row=0, padx=10, sticky=(tk.N, tk.S, tk.W, tk.E))
 
 # Frame for input fields
 inputFrame = ttk.LabelFrame(rightFrame, text="Input Fields")
-inputFrame.grid(column=1, row=0, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
+inputFrame.grid(column=1, row=0, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
 
 # Labels and Entry fields
 documentNameLabel = ttk.Label(inputFrame, text="Document Name:")
@@ -88,13 +123,13 @@ dateEntry = ttk.Entry(inputFrame)
 dateEntry.grid(column=1, row=1, padx=10, sticky=(tk.W, tk.E))
 
 # Browse Button
-browseButton = ttk.Button(inputFrame, text="Browse Image")
+browseButton = ttk.Button(inputFrame, text="Browse Image", command=browse_image)
 browseButton.grid(column=0, row=2, columnspan=2, pady=10, padx=10, sticky=(tk.W, tk.E))
 
 # Frame for image preview
 previewFrame = ttk.LabelFrame(rightFrame, text="Image Preview")
-previewFrame.grid(column=1, row=1, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
-previewLabel = ttk.Label(previewFrame, text="Image Preview", width=40, anchor="center")
+previewFrame.grid(column=1, row=1, sticky=(tk.N, tk.S, tk.W, tk.E))
+previewLabel = ttk.Label(previewFrame)
 previewLabel.grid(column=0, row=0, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
 
 # Column and Row configurations for resizing
@@ -105,12 +140,6 @@ contentFrame.rowconfigure(0, weight=1)
 
 cameraFrame.columnconfigure(0, weight=1)  # Allow the image frame to resize
 cameraFrame.rowconfigure(0, weight=1)
-
-rightFrame.columnconfigure(0, weight=1)  # Allow the input frame to resize
-rightFrame.columnconfigure(1, weight=1)
-rightFrame.rowconfigure(0, weight=0)
-rightFrame.rowconfigure(1, weight=0)
-rightFrame.rowconfigure(2, weight=0)
 
 root.columnconfigure(0, weight=1)  # Allow the entire window to resize
 root.rowconfigure(0, weight=1)
