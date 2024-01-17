@@ -1,30 +1,27 @@
 from tkinter import *
 import sqlite3
 import os
-import webbrowser  # Required to open the default web browser
+import webbrowser 
 from tkinter import ttk
 from PyPDF2 import PdfReader
 from datetime import datetime
+import subprocess
 
 def extract_date_from_pdf(file_path):
     try:
         with open(file_path, 'rb') as file:
             pdf_reader = PdfReader(file)
             
-            # Extract metadata
+            # Metadata reading for Creation Date extraction
             metadata = pdf_reader.metadata
-            # Extract creation date
             creation_date = metadata.get('/CreationDate')
             
             if creation_date:
-                # Remove the prefix 'D:'
+                #Remove bloat from metadata extracted + time conversion
                 creation_date = creation_date.replace('D:', '')
-
-                # Extract timezone offset and remove single quotes
                 offset_str = creation_date[-6:].replace("'", "")
                 date_str_without_offset = creation_date[:-6]
 
-                # Adjust the format based on the actual date string
                 date_obj = datetime.strptime(date_str_without_offset + offset_str, '%Y%m%d%H%M%S%z')
                 return date_obj.strftime('%Y-%m-%d %H:%M:%S')
             else:
@@ -34,28 +31,27 @@ def extract_date_from_pdf(file_path):
         print(f"Error extracting date from {file_path}: {e}")
         return None
 
+
 def update_database():
     conn = sqlite3.connect(r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database\g3db.db')
     cursor = conn.cursor()
 
-    # Specify the folder path containing PDF files
+    # PDF file path
     folder_path = r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database'
 
-    # Clear existing data in the table
+    # Clear table for new values
     cursor.execute("DELETE FROM pdf_files")
 
-    # Iterate through the PDF files in the folder and insert new data with specified IDs
+    # Populate table with entries
     for file_id, file_name in enumerate(os.listdir(folder_path), start=1):
         if file_name.endswith('.pdf'):
             file_path = os.path.join(folder_path, file_name)
 
             # Extract date from the PDF file
             file_date = extract_date_from_pdf(file_path)
-
-            # Insert the file information into the database with specified ID
             cursor.execute("INSERT INTO pdf_files (id, file_name, file_path, date) VALUES (?, ?, ?, ?)",
                            (file_id, file_name, file_path, file_date))
-    # Commit changes and close the connection
+            
     conn.commit()
     conn.close()
 
@@ -63,41 +59,46 @@ def query_database():
     conn = sqlite3.connect(r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database\g3db.db')
     cursor = conn.cursor()
 
-    # Execute a sample query to retrieve data from the database
+    # Retrieve values from SQLite DB
     cursor.execute("SELECT id, file_name, date FROM pdf_files")
     rows = cursor.fetchall()
 
-    # Clear existing entries in the Treeview
+    # Clear tree to populate for new files
     for item in tree.get_children():
         tree.delete(item)
 
-    # Insert retrieved data into the Treeview
     for row in rows:
         tree.insert("", "end", values=row)
 
     conn.close()
 
-def view_selected_pdf():
+
+def view_selected_pdf(event):
     # Get the selected item from the Treeview
     selected_item = tree.selection()
     if selected_item:
-        # Extract the file path from the selected item
-        file_path = tree.item(selected_item, 'values')[2]  # Assuming the file_path is at index 2
 
-        # Open the default web browser to view the PDF file
-        webbrowser.open(file_path)
+        # Debug line for doublechecking
+        print(f"Selected item values: {tree.item(selected_item, 'values')}")
+        file_path = tree.item(selected_item, 'values')[1] 
 
-# Function to be called when the Search button is pressed
+        try:
+            # debug lie
+            print(f"Selected PDF file: {file_path}")
+
+            # Open the default PDF viewer on Windows
+            subprocess.Popen(['start', '', file_path], shell=True)
+        except Exception as e:
+            print(f"Error opening PDF file: {e}")
+
+
+
 def search_button_clicked():
-    # You can implement the search logic here
-    # For simplicity, let's call the query_database function
+    #TBC 
     query_database()
 
-# Function to be called when the Update button is pressed
 def update_button_clicked():
-    # Update the database
     update_database()
-    # Refresh the displayed data in the Treeview
     query_database()
 
 root = Tk()
@@ -135,7 +136,7 @@ var3 = IntVar()
 c3 = ttk.Checkbutton(searchFrame, text='Name', variable=var3, onvalue=1, offvalue=0)
 c3.grid(column=1, row=2, sticky=(W, E), padx=150, pady=10)
 
-# Treeview (Table) with 3 columns (modified for simplicity)
+# Treeview (Table) with 3 columns 
 columns = ("#", "Document Name", "Date")
 tree = ttk.Treeview(root, columns=columns, show="headings")
 
@@ -145,6 +146,7 @@ for col in columns:
 
 # Place the Treeview in the grid
 tree.grid(column=0, row=2, sticky=(N, S, E, W), padx=(20, 20), pady=(20, 20))
+tree.bind('<ButtonRelease-1>', view_selected_pdf)
 
 # Add a vertical scroll
 scrollbar = ttk.Scrollbar(root, orient=VERTICAL, command=tree.yview)
@@ -152,10 +154,10 @@ tree.configure(yscrollcommand=scrollbar.set)
 scrollbar.grid(row=2, column=1, sticky='ns')
 
 #Column and Row configurations for resizing
-root.columnconfigure(0, weight=1) # Allow the entire window to resize
+root.columnconfigure(0, weight=1) 
 root.rowconfigure(0, weight=0)
 root.rowconfigure(1, weight=0)
-root.rowconfigure(2, weight=1) # Make the row with the table resizable
+root.rowconfigure(2, weight=1) 
 
 searchFrame.columnconfigure(0, weight=1)
 searchFrame.columnconfigure(1, weight=1)
@@ -180,8 +182,6 @@ updateButton.grid(column=0, row=3, padx=(20, 20), pady=10, sticky=(N, S, E, W))
 
 #Call the update_database function at startup
 update_database()
-
-#Call the query_database function to initially populate the Treeview
 query_database()
 
 root.mainloop()
