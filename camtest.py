@@ -1,161 +1,168 @@
 import cv2
 import tkinter as tk
 import os
+import numpy as np
 from io import BytesIO
 from tkinter import IntVar, ttk, filedialog
-from picamera.array import PiRGBArray
-from picamera import PiCamera
 from PIL import Image, ImageTk
 
-image_counter = 1
 button_width = 15
-
-# Function to update the camera feed
-
-
-def update_camera():
-    frame = next(camera.capture_continuous(
-        rawCapture, format="bgr", use_video_port=True))
-    image = frame.array
-
-    # Convert OpenCV image to Tkinter PhotoImage
-    img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    img = Image.fromarray(img)
-    img = ImageTk.PhotoImage(img)
-
-    # Update the label with the new image
-    cameraView.config(image=img)
-    cameraView.image = img
-
-    key = cv2.waitKey(1) & 0xFF
-    rawCapture.truncate(0)
-
-    if key == ord("q"):
-        root.destroy()
-        return
-
-    root.after(1, update_camera)  # Schedule the next update
+original_image = None
 
 
-# Function to capture and save an image
-def capture_image():
-    global image_counter
+def order_points(pts):
+    '''Rearrange coordinates to order:
+       top-left, top-right, bottom-right, bottom-left'''
+    rect = np.zeros((4, 2), dtype='float32')
+    pts = np.array(pts)
+    s = pts.sum(axis=1)
+    # Top-left point will have the smallest sum.
+    rect[0] = pts[np.argmin(s)]
+    # Bottom-right point will have the largest sum.
+    rect[2] = pts[np.argmax(s)]
 
-    # Capturing a single frame
-    frame = next(camera.capture_continuous(
-        rawCapture, format="bgr", use_video_port=True))
-    image = frame.array
-
-    # Directory path
-    directory = "/home/rpig3/docubase/env/bin/mainProg/temp_fldr"
-
-    # Saving the image with a numbered filename
-    image_path = os.path.join(directory, f"captured_image_{image_counter}.jpg")
-    cv2.imwrite(image_path, cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-
-    # Update the preview with the captured image
-    update_preview(image_path)
-
-    # Show retake button
-    retakeButton.grid(column=0, row=1, padx=(0, 5), pady=(0, 5))
-    addButton.grid(column=1, row=1, padx=(5, 0), pady=(0, 5))
-    finishButton.grid(column=0, row=2, pady=10)
-
-    # Increment the image counter for the next capture
-    image_counter += 1
-
-    # Reset the rawCapture object for the next capture
-    rawCapture.truncate(0)
+    diff = np.diff(pts, axis=1)
+    # Top-right point will have the smallest difference.
+    rect[1] = pts[np.argmin(diff)]
+    # Bottom-left will have the largest difference.
+    rect[3] = pts[np.argmax(diff)]
+    # return the ordered coordinates
+    return rect.astype('int').tolist()
 
 
-# Function to update the preview image
+def scan_image(img):
+    # Resize image to workable size
+    dim_limit = 1080
+    max_dim = max(img.shape)
+    if max_dim > dim_limit:
+        resize_scale = dim_limit / max_dim
+        img = cv2.resize(img, None, fx=resize_scale, fy=resize_scale)
+
+    # Create a copy of resized original image for later use
+    orig_img = img.copy()
+
+    # Removing text from the document
+    kernel = np.ones((5, 5), np.uint8)
+    no_text_img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel, iterations=5)
+
+    # Convert to grayscale
+    grayed_img = cv2.cvtColor(no_text_img, cv2.COLOR_BGR2GRAY)
+
+    # Blur
+    blurred_img = cv2.GaussianBlur(grayed_img, (11, 11), 0)
+
+    # Egde Detection
+    edged_img = cv2.Canny(blurred_img, 0, 200)
+    edged_img = cv2.dilate(
+        edged_img, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+
+    # Finding contours for the detected edges.
+    con = np.zeros_like(no_text_img)
+    contours, hierarchy = cv2.findContours(
+        edged_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    # Keeping only the largest detected contour.
+    page = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+    contour_img = cv2.drawContours(con, page, -1, (0, 255, 255), 3)
+
+    # Detecting Edges through Contour approximation
+    if len(page) == 0:
+        return orig_img
+    # Loop over the contours.
+    for c in page:
+        # Approximate the contour.
+        epsilon = 0.02 * cv2.arcLength(c, True)
+        corners = cv2.approxPolyDP(c, epsilon, True)
+        # If our approximated contour has four points
+        if len(corners) == 4:
+            break
+    cv2.drawContours(con, c, -1, (0, 255, 255), 3)
+    cv2.drawContours(con, corners, -1, (0, 255, 0), 10)
+    # Sorting the corners and converting them to desired shape.
+    corners = sorted(np.concatenate(corners).tolist())
+    # Rearranging the order of the corner points.
+    corners = order_points(corners)
+
+    # Displaying the corners.
+    for index, c in enumerate(corners):
+        character = chr(65 + index)
+        cv2.putText(con, character, tuple(
+            c), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+
+     # Finding Destination Co-ordinates
+    w1 = np.sqrt((corners[0][0] - corners[1][0]) ** 2 +
+                 (corners[0][1] - corners[1][1]) ** 2)
+    w2 = np.sqrt((corners[2][0] - corners[3][0]) ** 2 +
+                 (corners[2][1] - corners[3][1]) ** 2)
+    # Finding the maximum width.
+    w = max(int(w1), int(w2))
+
+    h1 = np.sqrt((corners[0][0] - corners[2][0]) ** 2 +
+                 (corners[0][1] - corners[2][1]) ** 2)
+    h2 = np.sqrt((corners[1][0] - corners[3][0]) ** 2 +
+                 (corners[1][1] - corners[3][1]) ** 2)
+    # Finding the maximum height.
+    h = max(int(h1), int(h2))
+
+    # Final destination co-ordinates.
+    destination_corners = order_points(
+        np.array([[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]))
+
+    h, w = orig_img.shape[:2]
+    # Getting the homography.
+    homography, mask = cv2.findHomography(np.float32(corners), np.float32(destination_corners), method=cv2.RANSAC,
+                                          ransacReprojThreshold=3.0)
+    # Perspective transform using homography.
+    un_warped = cv2.warpPerspective(orig_img, np.float32(
+        homography), (w, h), flags=cv2.INTER_LINEAR)
+    # Crop
+    final = un_warped[:destination_corners[2][1], :destination_corners[2][0]]
+
+    return final
+
+
+def convert_image():
+    directory = "/home/rpig3/docubase/env/bin/mainProg"
+    output_path = os.path.join(directory, "scanned_image.jpg")
+    img = cv2.imread(
+        "/home/rpig3/docubase/env/bin/mainProg/original_image.jpg")
+    scanned_image = scan_image(img)
+
+    # Save the grayscale image
+    cv2.imwrite(output_path, scanned_image)
+    update_preview(output_path)
+    print("scanned")
+
+
+# Function to update the preview label with the given image path
+
+
 def update_preview(image_path):
+    global original_image
     image = Image.open(image_path)
-    image = image.resize((320, 240), resample=Image.LANCZOS)
-    img = ImageTk.PhotoImage(image)
+    resized_image = image.resize((384, 512), resample=Image.LANCZOS)
+    img = ImageTk.PhotoImage(resized_image)
     previewLabel.config(image=img)
     previewLabel.image = img
 
-
-# Retake Button Function
-def retake_button():
-    # Hide the buttons
-    retakeButton.grid_forget()
-    addButton.grid_forget()
-    finishButton.grid_forget()
-
-    # Reset the previewLabel
-    previewLabel.config(image="")
-    previewLabel.image = None
+# Function to load the image inside the imageView widget
 
 
-# Add Button Function
-def add_button():
-    global image_counter
+def load_image():
+    global original_image
+    original_image_path = "original_image.jpg"
 
-    # Directory path
-    output_directory = "/home/rpig3/docubase/env/bin/mainProg/scan_fldr"
+    # Create a copy of the original image
+    original_image = Image.open(original_image_path).copy()
 
-    # Get the original image file path of the image in the preview
-    original_image_path = f"/home/rpig3/docubase/env/bin/mainProg/temp_fldr/captured_image_{image_counter}.jpg"
+    # Resize the copy
+    resized_image = original_image.resize((384, 512), resample=Image.LANCZOS)
 
-    # Save the image in the dedicated directory
-    image_path = os.path.join(
-        output_directory, f"added_image_{image_counter-1}.jpg")
+    # Convert the resized image to PhotoImage
+    img = ImageTk.PhotoImage(resized_image)
 
-    # Open the original image with PIL and save it to the new path
-    pil_image = Image.open(original_image_path)
-    pil_image.save(image_path)
+    # Retun the img
+    return img
 
-    retake_button()
-
-
-# Function to browse image to display in preview image frame
-def browse_image():
-    global img
-    file_path = filedialog.askopenfilename(initialdir=os.getcwd(), title="Select Image File",
-                                           filetypes=(('JPG file', '*.jpg'), ('PNG file', '*.png'), ('All File', "*.*")))
-    image = Image.open(file_path)
-    image = image.resize((320, 240), resample=Image.LANCZOS)
-    img = ImageTk.PhotoImage(image)
-    previewLabel.config(image=img)
-    previewLabel.image = img
-
-
-def convert_images_to_pdf(folder_path, output_pdf_path):
-    images = [f for f in os.listdir(folder_path) if f.lower().endswith(
-        ('.png', '.jpg', '.jpeg', '.gif'))]
-
-    if not images:
-        print("No images found in the selected folder.")
-        return
-
-    images.sort()  # Optional: Sort the images alphabetically
-
-    img_list = [Image.open(os.path.join(folder_path, img)) for img in images]
-    img_list[0].save(output_pdf_path, save_all=True,
-                     append_images=img_list[1:])
-
-
-def on_done_button_click():
-    initial_folder = r"C:\\Users\\danica\\OneDrive\\Desktop\\example"
-    folder_path = filedialog.askdirectory(
-        title="Select a folder with images", initialdir=initial_folder)
-
-    if folder_path:
-        # Change this to the desired output folder
-        output_folder = r"c:\\Users\\danica\\OneDrive\\Desktop\\done"
-        output_pdf_path = os.path.join(output_folder, "output.pdf")
-
-        convert_images_to_pdf(folder_path, output_pdf_path)
-        print("Conversion completed successfully!")
-
-
-# Initialize PiCamera
-camera = PiCamera()
-camera.resolution = (640, 480)
-camera.framerate = 30
-rawCapture = PiRGBArray(camera, size=(640, 480))
 
 # Initialize the root widget
 root = tk.Tk()
@@ -165,44 +172,27 @@ root.title("Document Form")
 contentFrame = ttk.Frame(root, padding=(10, 10, 10, 10))
 contentFrame.grid(column=0, row=0, sticky=(tk.N, tk.S, tk.E, tk.W))
 
-# Frame & Display the camera preview (left side)
-cameraFrame = ttk.LabelFrame(contentFrame, text="Camera Preview")
-cameraFrame.grid(column=0, row=0, padx=10, pady=10,
-                 sticky=(tk.N, tk.S, tk.E, tk.W))
-cameraView = ttk.Label(cameraFrame)
-cameraView.grid(column=0, row=0, padx=10, pady=10,
+imageFrame = ttk.LabelFrame(contentFrame, text="Camera Preview")
+imageFrame.grid(column=0, row=0, padx=10, pady=10,
                 sticky=(tk.N, tk.S, tk.E, tk.W))
+imageView = ttk.Label(imageFrame)
+imageView.grid(column=0, row=0, padx=10, pady=10,
+               sticky=(tk.N, tk.S, tk.E, tk.W))
 
-# Capture Button
-captureBFrame = ttk.Frame(cameraFrame)
-captureBFrame.grid(column=0, row=1, pady=(5, 10))
-captureButton = ttk.Button(
-    captureBFrame, text="Capture Image", width=button_width, command=capture_image)
-captureButton.grid(column=0, row=0, columnspan=2, sticky=(tk.W, tk.E))
+image = load_image()
+imageView.configure(image=image)
+imageView.image = image
+
+# Convert Button
+convertBFrame = ttk.Frame(imageFrame)
+convertBFrame.grid(column=0, row=1, pady=(5, 10))
+convertButton = ttk.Button(
+    convertBFrame, text="Convert Image", width=button_width, command=convert_image)
+convertButton.grid(column=0, row=0, columnspan=2, sticky=(tk.W, tk.E))
 
 # Frame for right side contents (invisible)
 rightFrame = ttk.Frame(contentFrame)
 rightFrame.grid(column=1, row=0, padx=10, sticky=(tk.N, tk.S, tk.W, tk.E))
-
-# Frame for input fields
-inputFrame = ttk.LabelFrame(rightFrame, text="Input Fields")
-inputFrame.grid(column=1, row=0, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
-
-# Labels and Entry fields
-documentNameLabel = ttk.Label(inputFrame, text="Document Name:")
-documentNameLabel.grid(column=0, row=0, padx=10, pady=(10, 2), sticky=tk.W)
-documentNameEntry = ttk.Entry(inputFrame)
-documentNameEntry.grid(column=1, row=0, padx=10, sticky=(tk.W, tk.E))
-dateLabel = ttk.Label(inputFrame, text="Date:")
-dateLabel.grid(column=0, row=1, padx=10, pady=(5, 2), sticky=tk.W)
-dateEntry = ttk.Entry(inputFrame)
-dateEntry.grid(column=1, row=1, padx=10, sticky=(tk.W, tk.E))
-
-# Browse Button
-browseButton = ttk.Button(
-    inputFrame, text="Browse Image", width=button_width, command=browse_image)
-browseButton.grid(column=0, row=2, columnspan=2,
-                  pady=10, padx=10, sticky=(tk.W, tk.E))
 
 # Frame for image preview
 previewFrame = ttk.LabelFrame(rightFrame, text="Image Preview")
@@ -210,36 +200,6 @@ previewFrame.grid(column=1, row=1, sticky=(tk.N, tk.S, tk.W, tk.E))
 previewLabel = ttk.Label(previewFrame)
 previewLabel.grid(column=0, row=0, padx=10, pady=10,
                   sticky=(tk.N, tk.S, tk.W, tk.E))
-finishButton = ttk.Button(previewFrame, text="Finish")
-
-# Retake and Add Button and Frame
-buttonsFrame = ttk.Frame(previewFrame)
-buttonsFrame.grid(column=0, row=1)
-retakeButton = ttk.Button(buttonsFrame, text="Retake",
-                          width=button_width, command=retake_button)
-addButton = ttk.Button(buttonsFrame, text="Add",
-                       width=button_width, command=add_button)
-
-# Column and Row configurations for resizing
-# Allow the first column (image frame) to resize
-contentFrame.columnconfigure(0, weight=1)
-contentFrame.columnconfigure(1, weight=1)
-contentFrame.rowconfigure(0, weight=1)
-
-cameraFrame.columnconfigure(0, weight=1)  # Allow the image frame to resize
-cameraFrame.rowconfigure(0, weight=1)
-
-root.columnconfigure(0, weight=1)  # Allow the entire window to resize
-root.rowconfigure(0, weight=1)
-
-# Checkbox under image frame
-# var1 = IntVar()
-# c1 = ttk.Checkbutton(contentFrame, text='First Page',
-#                      variable=var1, onvalue=1, offvalue=0)
-# c1.grid(column=0, row=1, sticky=(tk.E, tk.S), padx=10, pady=10)
-
-# Run the camera update function in a separate thread
-root.after(100, update_camera)  # Wait for 100 milliseconds before starting
 
 # Start the Tkinter main loop
 root.mainloop()
