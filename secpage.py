@@ -7,6 +7,34 @@ from PyPDF2 import PdfReader
 from datetime import datetime
 import subprocess
 
+
+
+
+# Set the current working directory to the script's directory
+script_directory = os.path.dirname(os.path.abspath(r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database'))
+os.chdir(script_directory)
+
+print("Current Working Directory:", os.getcwd())
+
+# Path to the database file
+database_path = os.path.join(script_directory, "g3db.db")
+print("Database Path:", database_path)
+
+try:
+    # Create a connection to the SQLite database
+    conn = sqlite3.connect(database_path)
+    cursor = conn.cursor()
+    print("Connected to the database")
+
+    # Continue with the rest of your code...
+except Exception as e:
+    print("Error:", e)
+finally:
+    # Close the database connection when the application is closed
+    if conn:
+        conn.close()
+        print("Database connection closed")
+
 def extract_date_from_pdf(file_path):
     try:
         with open(file_path, 'rb') as file:
@@ -72,6 +100,32 @@ def query_database():
 
     conn.close()
 
+def sort_options_changed(*args):
+    conn = sqlite3.connect(r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database\g3db.db')
+    cursor = conn.cursor()
+    selected_option = sort_combobox.get()
+
+    
+
+    if selected_option == "by Date (Ascending)":
+        query = "SELECT * FROM pdf_files ORDER BY date ASC"
+    elif selected_option == "by Date (Descending)":
+        query = "SELECT * FROM pdf_files ORDER BY date DESC"
+    elif selected_option == "by Name (Ascending)":
+        query = "SELECT * FROM pdf_files ORDER BY file_name ASC"
+    elif selected_option == "by Name (Descending)":
+        query = "SELECT * FROM pdf_files ORDER BY file_name DESC"
+    
+
+    cursor.execute(query)
+    sorted_data = cursor.fetchall()
+
+    for item in tree.get_children():
+        tree.delete(item)
+
+    for i, row in enumerate(sorted_data, start=1):
+        tree.insert("", "end", values=(row[0], row[1],row[3]))
+
 
 def view_selected_pdf(event):
     # Get the selected item from the Treeview
@@ -123,18 +177,17 @@ searchButton.grid(column=2, row=0, padx=(5, 0), pady=0, sticky=(W, E))
 sortbyLabel = ttk.Label(searchFrame, text="Sort by")
 sortbyLabel.grid(column=0, row=2, padx=10, sticky=W)
 
-# Checkbox
-var1 = IntVar()
-c1 = ttk.Checkbutton(searchFrame, text='Date', variable=var1, onvalue=1, offvalue=0)
-c1.grid(column=1, row=2, sticky=(W, E), padx=0, pady=10)
+# Dropdown
+# Sorting options
+sort_options = ["by Date (Ascending)", "by Date (Descending)", "by Name (Ascending)", "by Name (Descending)"]  # Add your sorting options here
 
-var2 = IntVar()
-c2 = ttk.Checkbutton(searchFrame, text='Type', variable=var2, onvalue=1, offvalue=0)
-c2.grid(column=1, row=2, sticky=(W, E), padx=75, pady=10)
+# Create a Combobox (drop-down menu) for sorting
+sort_combobox = ttk.Combobox(searchFrame, values=sort_options, state="readonly")
+sort_combobox.grid(column=1, row=2, padx=(0, 0), pady=(0), sticky=(W, E))
 
-var3 = IntVar()
-c3 = ttk.Checkbutton(searchFrame, text='Name', variable=var3, onvalue=1, offvalue=0)
-c3.grid(column=1, row=2, sticky=(W, E), padx=150, pady=10)
+# Set default sorting option
+sort_combobox.set(sort_options[0])
+sort_combobox.bind("<<ComboboxSelected>>", sort_options_changed)
 
 # Treeview (Table) with 3 columns 
 columns = ("#", "Document Name", "Date")
