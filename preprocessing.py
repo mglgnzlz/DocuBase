@@ -1,136 +1,107 @@
 import cv2
+import imutils
 import numpy as np
+from skimage.filters import threshold_local
 
 
 def order_points(pts):
-    '''Rearrange coordinates to order:
-       top-left, top-right, bottom-right, bottom-left'''
-    rect = np.zeros((4, 2), dtype='float32')
-    pts = np.array(pts)
+    # initialzie a list of coordinates that will be ordered
+    # such that the first entry in the list is the top-left,
+    # the second entry is the top-right, the third is the
+    # bottom-right, and the fourth is the bottom-left
+    rect = np.zeros((4, 2), dtype="float32")
+    # the top-left point will have the smallest sum, whereas
+    # the bottom-right point will have the largest sum
     s = pts.sum(axis=1)
-    # Top-left point will have the smallest sum.
     rect[0] = pts[np.argmin(s)]
-    # Bottom-right point will have the largest sum.
     rect[2] = pts[np.argmax(s)]
-
+    # now, compute the difference between the points, the
+    # top-right point will have the smallest difference,
+    # whereas the bottom-left will have the largest difference
     diff = np.diff(pts, axis=1)
-    # Top-right point will have the smallest difference.
     rect[1] = pts[np.argmin(diff)]
-    # Bottom-left will have the largest difference.
     rect[3] = pts[np.argmax(diff)]
     # return the ordered coordinates
-    return rect.astype('int').tolist()
+    return rect
 
 
-# Image Preprocessing Function
+def four_point_transform(image, pts):
+    # obtain a consistent order of the points and unpack them
+    # individually
+    rect = order_points(pts)
+    (tl, tr, br, bl) = rect
+    # compute the width of the new image, which will be the
+    # maximum distance between bottom-right and bottom-left
+    # x-coordiates or the top-right and top-left x-coordinates
+    widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+    widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+    maxWidth = max(int(widthA), int(widthB))
+    # compute the height of the new image, which will be the
+    # maximum distance between the top-right and bottom-right
+    # y-coordinates or the top-left and bottom-left y-coordinates
+    heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+    heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+    maxHeight = max(int(heightA), int(heightB))
+    # now that we have the dimensions of the new image, construct
+    # the set of destination points to obtain a "birds eye view",
+    # (i.e. top-down view) of the image, again specifying points
+    # in the top-left, top-right, bottom-right, and bottom-left
+    # order
+    dst = np.array([
+        [0, 0],
+        [maxWidth - 1, 0],
+        [maxWidth - 1, maxHeight - 1],
+        [0, maxHeight - 1]], dtype="float32")
+    # compute the perspective transform matrix and then apply it
+    M = cv2.getPerspectiveTransform(rect, dst)
+    warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+    # return the warped image
+    return warped
+
+
 def preprocessing(image):
-    # Scan for resize
-    dim_limit = 3280
-    max_dim = max(image.shape)
-    if max_dim > dim_limit:
-        resize_scale = dim_limit / max_dim
-        image = cv2.resize(image, None, fx=resize_scale, fy=resize_scale)
+    # Resize the image to workable size
+    ratio = image.shape[0]/500
 
     # Create a copy of resized original image for later use
     orig_image = image.copy()
+    image = imutils.resize(image, height=500)
 
-    # Removing text from the document
-    kernel = np.ones((7, 7), np.uint8)
-    no_text_image = cv2.morphologyEx(
-        image, cv2.MORPH_CLOSE, kernel, iterations=5)
-
-    # Apply grayscaling
-    grayed_image = cv2.cvtColor(no_text_image, cv2.COLOR_BGR2GRAY)
+    # Convert to grayscale
+    grayed_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Apply blur
-    blurred_image = cv2.GaussianBlur(grayed_image, (15, 15), 0)
+    blurred_image = cv2.GaussianBlur(grayed_image, (5, 5), 0)
 
-    # Apply egde detection & dilation
-    edged_image = cv2.Canny(blurred_image, 0, 200)
-    edged_image = cv2.dilate(
-        edged_image, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21)))
+    # Egde Detection
+    edged_image = cv2.Canny(blurred_image, 75, 200)
+    
+    # Finding contours
+    contour_image = cv2.findContours(
+        edged_image.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Finding contours for the detected edges.
-    con = np.zeros_like(no_text_image)
-    contours, hierarchy = cv2.findContours(
-        edged_image, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    
+    contour_image = imutils.grab_contours(contour_image)
+    contour_image = sorted(contour_image, key=cv2.contourArea, reverse=True)[:5]
 
-    if contours:
-        # Keeping only the largest detected contour.
-        page = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
-        contour_image = cv2.drawContours(con, page, -1, (0, 255, 255), 3)
-        corners, destination_corners = find_corners(con, page)
-
-        h, w = orig_image.shape[:2]
-        # Getting the homography.
-        homography, mask = cv2.findHomography(np.float32(corners), np.float32(destination_corners), method=cv2.RANSAC,
-                                              ransacReprojThreshold=3.0)
-        # Perspective transform using homography.
-        un_warped = cv2.warpPerspective(orig_image, np.float32(
-            homography), (w, h), flags=cv2.INTER_LINEAR)
-        # Crop
-        transformed_image = un_warped[:destination_corners[2]
-                                      [1], :destination_corners[2][0]]
-        return transformed_image
-
-    else:
-        return image
-
-
-def find_corners(con, page):
-    # Detecting Edges through Contour approximation
-    if len(page) == 0:
-        return orig_image, None
-    # Loop over the contours.
-    for c in page:
-        # Approximate the contour.
-        epsilon = 0.02 * cv2.arcLength(c, True)
-        corners = cv2.approxPolyDP(c, epsilon, True)
-        # If our approximated contour has four points
-        if len(corners) == 4:
+    for c in contour_image:
+        # approximate the contour
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+        # if our approximated contour has four points, then we
+        # can assume that we have found our screen
+        if len(approx) == 4:
+            screenCnt = approx
             break
-    cv2.drawContours(con, c, -1, (0, 255, 255), 3)
-    cv2.drawContours(con, corners, -1, (0, 255, 0), 10)
-    # Sorting the corners and converting them to desired shape.
-    corners = sorted(np.concatenate(corners).tolist())
-    # Rearranging the order of the corner points.
-    corners = order_points(corners)
 
-    # Displaying the corners.
-    for index, c in enumerate(corners):
-        character = chr(65 + index)
-        cv2.putText(con, character, tuple(
-            c), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+        else: 
+            # Thresholding
+            T = threshold_local(orig_image, 11, offset=10, method="gaussian")
 
-    # Finding Destination Co-ordinates
-    w1 = np.sqrt((corners[0][0] - corners[1][0]) ** 2 +
-                 (corners[0][1] - corners[1][1]) ** 2)
-    w2 = np.sqrt((corners[2][0] - corners[3][0]) ** 2 +
-                 (corners[2][1] - corners[3][1]) ** 2)
-    # Finding the maximum width.
-    w = max(int(w1), int(w2))
-
-    h1 = np.sqrt((corners[0][0] - corners[2][0]) ** 2 +
-                 (corners[0][1] - corners[2][1]) ** 2)
-    h2 = np.sqrt((corners[1][0] - corners[3][0]) ** 2 +
-                 (corners[1][1] - corners[3][1]) ** 2)
-    # Finding the maximum height.
-    h = max(int(h1), int(h2))
-    # Final destination co-ordinates.
-    destination_corners = order_points(
-        np.array([[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]))
-    return corners, destination_corners
+            transformed_image = (orig_image > T).astype("uint8") * 255
+            return transformed_image
 
 
-def unwrapping(orig_image, corners, destination_corners):
-    h, w = orig_image.shape[:2]
-    # Getting the homography.
-    homography, mask = cv2.findHomography(np.float32(corners), np.float32(destination_corners), method=cv2.RANSAC,
-                                          ransacReprojThreshold=3.0)
-    # Perspective transform using homography.
-    un_warped = cv2.warpPerspective(orig_image, np.float32(
-        homography), (w, h), flags=cv2.INTER_LINEAR)
-    # Crop
-    transformed_image = un_warped[:destination_corners[2]
-                                  [1], :destination_corners[2][0]]
-    return transformed_image
+    contour_image = cv2.drawContours(image, [screenCnt], -1, (0, 255, 0), 2)
+
+    return contour_image
