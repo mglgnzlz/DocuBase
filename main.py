@@ -1,87 +1,225 @@
-from tkinter import *
-from tkinter import ttk, filedialog
+import cv2
+import os
+import preprocessing
+import numpy as np
+import tkinter as tk
+from io import BytesIO
+from picamera import PiCamera
 from PIL import Image, ImageTk
+from picamera.array import PiRGBArray
+from tkinter import IntVar, ttk, filedialog
 
-def browseImage():
-    filename = filedialog.askopenfilename()
-    if filename:
-        loadAndDisplayImage(filename)
+image_counter = 1
+button_width = 15
+camera_running = True  # Flag to control the camera feed
 
-def loadAndDisplayImage(filename):
-    image = Image.open(filename)
-    image = image.resize((400, 400), resample=Image.LANCZOS)  # Use Lanczos resampling
+
+# Function to update the camera feed
+def update_camera():
+    if camera_running:
+        frame = next(camera.capture_continuous(
+            rawCapture, format="bgr", use_video_port=True))
+        feed = frame.array
+
+        # Convert image to grayscale
+        grayscaled = cv2.cvtColor(feed, cv2.COLOR_BGR2GRAY)
+        grayscaled = Image.fromarray(grayscaled)
+        grayscaled = ImageTk.PhotoImage(grayscaled)
+
+        # Update te camera preview with the grayscaled version
+        cameraView.config(image=grayscaled)
+        cameraView.image = grayscaled
+
+        key = cv2.waitKey(1) & 0xFF
+        rawCapture.truncate(0)
+        if key == ord("q"):
+            root.destroy()
+            return
+
+    root.after(1, update_camera)  # Schedule the next update
+
+
+# Function to capture an image
+def capture_image():
+    global camera_running, image_counter
+    directory = "/home/rpig3/docubase/env/bin/mainProg/temp_fldr"
+    captureButton["state"] = "disable"
+
+    # Pause camera feed
+    camera_running = not camera_running
+
+    # Set resolution for capturing image
+    camera.resolution = (3280, 2464)
+    frame = PiRGBArray(camera)
+    camera.capture(frame, format="bgr")
+    image = frame.array
+
+    # Saving the unfiltered image
+    image_path = os.path.join(directory, f"captured_image_{image_counter}.jpg")
+    cv2.imwrite(image_path, cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    unfiltered_image = cv2.imread(image_path)
+
+    # Preprocessing
+    preprocessed_image = preprocessing.preprocessing(unfiltered_image)
+
+    # Saving the preprocesed image
+    preprocessed_path = os.path.join(
+        directory, f"preprocessed_image_{image_counter}.jpg")
+    cv2.imwrite(preprocessed_path, preprocessed_image)
+
+    # Update the preview with the preprocessed image
+    update_preview(preprocessed_path)
+
+    # Show retake button
+    retakeButton.grid(column=0, row=1, padx=(0, 5), pady=(0, 5))
+    addButton.grid(column=1, row=1, padx=(5, 0), pady=(0, 5))
+    finishButton.grid(column=0, row=2, pady=10)
+
+    # Increment the image counter for the next capture
+    image_counter += 1
+
+    # Reset the resolution to the original value
+    camera.resolution = (640, 480)
+
+    rawCapture.truncate(0)  # Clear the camera array after capturing
+
+    # Resume camera feed
+    camera_running = not camera_running
+    captureButton["state"] = "normal"
+
+
+# Function to update the preview image
+def update_preview(image_path):
+    image = Image.open(image_path)
+    image = image.resize((320, 240), resample=Image.LANCZOS)
     photo = ImageTk.PhotoImage(image)
-    imageLabel.config(image=photo)
-    imageLabel.image = photo
+    previewLabel.config(image=photo)
+    previewLabel.image = photo
 
-root = Tk()
-root.title("Document Form")
 
-# Frame for the entire content
-contentFrame = ttk.Frame(root, padding=(10, 10, 10, 10))
-contentFrame.grid(column=0, row=0, sticky=(N, S, E, W))
+# Retake Button Function
+def retake_button():
+    global image_counter
 
-# Frame for image display
-imageFrame = ttk.Frame(contentFrame, borderwidth=2, relief="solid")  # Add border
-imageFrame.grid(column=0, row=0, rowspan=1, padx=10, pady=10, sticky=(N, S, W, E))
+    # Hide the buttons
+    retakeButton.grid_forget()
+    addButton.grid_forget()
+    finishButton.grid_forget()
 
-# Image box on the left side
-imageLabel = ttk.Label(imageFrame, text="Image Preview", width=40, anchor='center')
-imageLabel.grid(column=0, row=0, padx=10, pady=10, sticky=(N, S, W, E))
+    # Reset the previewLabel
+    previewLabel.config(image="")
+    previewLabel.image = None
 
-# Frame for input fields
-inputFrame = ttk.Frame(contentFrame, borderwidth=2, relief="solid")  # Add border
-inputFrame.grid(column=1, row=0, padx=10, pady=10, sticky=(N, S, W, E))
+    image_counter -= 1
 
-# Labels and Entry fields on the right side
-documentNameLabel = ttk.Label(inputFrame, text="Document Name:")
-documentNameLabel.grid(column=0, row=0, padx=10, pady=(0, 2), sticky=W)
 
-documentNameEntry = ttk.Entry(inputFrame)
-documentNameEntry.grid(column=1, row=0, padx=10, pady=(0, 2), sticky=(W, E))
+# Add Button Function
+def add_button():
+    global image_counter
 
-dateLabel = ttk.Label(inputFrame, text="Date:")
-dateLabel.grid(column=0, row=1, padx=10, pady=(0, 2), sticky=W)
+    # Directory path
+    output_directory = "/home/rpig3/docubase/env/bin/mainProg/scan_fldr"
 
-dateEntry = ttk.Entry(inputFrame)
-dateEntry.grid(column=1, row=1, padx=10, pady=(0, 2), sticky=(W, E))
+    # Get the original image file path of the image in the preview
+    original_image_path = f"/home/rpig3/docubase/env/bin/mainProg/temp_fldr/preprocessed_image_{image_counter-1}.jpg"
 
-# Button to browse for an image
-browseButton = ttk.Button(inputFrame, text="Browse Image", command=browseImage)
-browseButton.grid(column=0, row=2, columnspan=2, pady=10, padx=10, sticky=(W, E))
+    # Save the image in the dedicated directory
+    image_path = os.path.join(
+        output_directory, f"scanned_image_{image_counter-1}.jpg")
 
-# Column and Row configurations for resizing
-contentFrame.columnconfigure(0, weight=1)  # Allow the first column (image frame) to resize
-contentFrame.columnconfigure(1, weight=1)
-contentFrame.rowconfigure(0, weight=1)
+    # Open the original image with PIL and save it to the new path
+    pil_image = Image.open(original_image_path)
+    pil_image.save(image_path)
 
-imageFrame.columnconfigure(0, weight=1)  # Allow the image frame to resize
-imageFrame.rowconfigure(0, weight=1)
+    retakeButton.grid_forget()
+    addButton.grid_forget()
+    finishButton.grid_forget()
 
-inputFrame.columnconfigure(0, weight=1)  # Allow the input frame to resize
-inputFrame.columnconfigure(1, weight=1)
-inputFrame.rowconfigure(0, weight=0)
-inputFrame.rowconfigure(1, weight=0)
-inputFrame.rowconfigure(2, weight=0)
+    # Reset the previewLabel
+    previewLabel.config(image="")
+    previewLabel.image = None
 
-root.columnconfigure(0, weight=1)  # Allow the entire window to resize
-root.rowconfigure(0, weight=1)
 
-# Checkbox under image frame
-var1 = IntVar()
-c1 = ttk.Checkbutton(contentFrame, text='First Page', variable=var1, onvalue=1, offvalue=0)
-c1.grid(column=0, row=1, sticky=(E, S), padx=10, pady=10)
+# Function to browse image to display in preview image frame
+def browse_image():
+    global img
+    file_path = filedialog.askopenfilename(initialdir=os.getcwd(), title="Select Image File",
+                                           filetypes=(('JPG file', '*.jpg'), ('PNG file', '*.png'), ('All File', "*.*")))
+    image = Image.open(file_path)
+    image = image.resize((320, 240), resample=Image.LANCZOS)
+    photo = ImageTk.PhotoImage(image)
+    previewLabel.config(image=photo)
+    previewLabel.image = photo
 
-# Buttons in one row following the content frame
-button_width = 10  # Set a common width for all buttons
 
-button1 = ttk.Button(contentFrame, text="Retake", width=button_width)
-button1.grid(column=1, row=1, pady=10, padx=5, sticky=(N))
+# Set up PiCamera
+with PiCamera() as camera:
+    camera.resolution = (640, 480)
+    rawCapture = PiRGBArray(camera)
 
-button2 = ttk.Button(contentFrame, text="Add", width=button_width)
-button2.grid(column=1, row=1, pady=10, padx=9, sticky=(E))
+    # Create the main window
+    root = tk.Tk()
+    root.title("Document Form")
 
-button3 = ttk.Button(contentFrame, text="Finish", width=button_width)
-button3.grid(column=1, row=1, pady=10, padx=10, sticky=(W))
+    # Frame for the entire content
+    contentFrame = ttk.Frame(root, padding=(10, 10, 10, 10))
+    contentFrame.grid(column=0, row=0, sticky=(tk.N, tk.S, tk.E, tk.W))
 
-root.mainloop()
+    # Frame & Display the camera preview (left side)
+    cameraFrame = ttk.LabelFrame(contentFrame, text="Camera Preview")
+    cameraFrame.grid(column=0, row=0, padx=10, pady=10,
+                     sticky=(tk.N, tk.S, tk.E, tk.W))
+    cameraView = ttk.Label(cameraFrame)
+    cameraView.grid(column=0, row=0, padx=10, pady=10,
+                    sticky=(tk.N, tk.S, tk.E, tk.W))
+
+    # Capture Button
+    captureBFrame = ttk.Frame(cameraFrame)
+    captureBFrame.grid(column=0, row=1, pady=(5, 10))
+    captureButton = ttk.Button(
+        captureBFrame, text="Capture Image", width=button_width, command=capture_image)
+    captureButton.grid(column=0, row=0, columnspan=2, sticky=(tk.W, tk.E))
+
+    # Frame for right side contents (invisible)
+    rightFrame = ttk.Frame(contentFrame)
+    rightFrame.grid(column=1, row=0, padx=10, sticky=(tk.N, tk.S, tk.W, tk.E))
+
+    # Frame for input fields
+    inputFrame = ttk.LabelFrame(rightFrame, text="Input Fields")
+    inputFrame.grid(column=1, row=0, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
+
+    # Labels and Entry fields
+    documentNameLabel = ttk.Label(inputFrame, text="Document Name:")
+    documentNameLabel.grid(column=0, row=0, padx=10, pady=(10, 2), sticky=tk.W)
+    documentNameEntry = ttk.Entry(inputFrame)
+    documentNameEntry.grid(column=1, row=0, padx=10, sticky=(tk.W, tk.E))
+    dateLabel = ttk.Label(inputFrame, text="Date:")
+    dateLabel.grid(column=0, row=1, padx=10, pady=(5, 2), sticky=tk.W)
+    dateEntry = ttk.Entry(inputFrame)
+    dateEntry.grid(column=1, row=1, padx=10, sticky=(tk.W, tk.E))
+
+    # Browse Button
+    browseButton = ttk.Button(
+        inputFrame, text="Browse Image", width=button_width, command=browse_image)
+    browseButton.grid(column=0, row=2, columnspan=2,
+                      pady=10, padx=10, sticky=(tk.W, tk.E))
+
+    # Frame for image preview
+    previewFrame = ttk.LabelFrame(rightFrame, text="Image Preview")
+    previewFrame.grid(column=1, row=1, sticky=(tk.N, tk.S, tk.W, tk.E))
+    previewLabel = ttk.Label(previewFrame)
+    previewLabel.grid(column=0, row=0, padx=10, pady=10,
+                      sticky=(tk.N, tk.S, tk.W, tk.E))
+    finishButton = ttk.Button(previewFrame, text="Finish")
+
+    # Retake and Add Button and Frame
+    buttonsFrame = ttk.Frame(previewFrame)
+    buttonsFrame.grid(column=0, row=1)
+    retakeButton = ttk.Button(buttonsFrame, text="Retake",
+                              width=button_width, command=retake_button)
+    addButton = ttk.Button(buttonsFrame, text="Add",
+                           width=button_width, command=add_button)
+
+    # Start the Tkinter main loop
+    update_camera()
+    root.mainloop()
