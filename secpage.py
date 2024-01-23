@@ -7,12 +7,20 @@ from PyPDF2 import PdfReader
 from datetime import datetime
 import subprocess
 from sqlite_backend import *
-
+from sqlite_backend import (
+    update_database,
+    query_database,
+    sort_options_changed,
+    view_selected_pdf,
+    search_button_clicked,
+    delete_selected_file,
+    rename_selected_file,
+)
 
 
 
 # Set the current working directory to the script's directory
-script_directory = os.path.dirname(os.path.abspath(r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database'))
+script_directory = os.path.dirname(os.path.abspath(r'C:\Users\danica\Docubase\DocuBase'))
 os.chdir(script_directory)
 
 print("Current Working Directory:", os.getcwd())
@@ -51,7 +59,7 @@ searchEntry = ttk.Entry(searchFrame)
 searchEntry.grid(column=1, row=(0), padx=0, pady=(0), sticky=(W, E))
 
 # Search Button
-searchButton = ttk.Button(searchFrame, text="Search", command=lambda: search_button_clicked(tree))
+searchButton = ttk.Button(searchFrame, text="Search", command=lambda: search_button_clicked(tree, searchEntry))
 searchButton.grid(column=2, row=0, padx=(5, 0), pady=0, sticky=(W, E))
 
 
@@ -74,7 +82,8 @@ tree = ttk.Treeview(root, columns=columns, show="headings")
 
 # Set default sorting option
 sort_combobox.set(sort_options[0])
-sort_combobox.bind("<<ComboboxSelected>>", sort_options_changed(sort_combobox, tree))
+sort_combobox.bind("<<ComboboxSelected>>", lambda event: sort_options_changed(sort_combobox, tree))
+
 
 
 # Set column headings
@@ -120,5 +129,8 @@ updateButton.grid(column=0, row=3, padx=(20, 20), pady=10, sticky=(N, S, E, W))
 #Call the update_database function at startup
 update_database()
 query_database(tree)
+
+# Bind right-click event to show the context menu
+tree.bind("<Button-3>", lambda event: show_context_menu(event, tree))
 
 root.mainloop()
