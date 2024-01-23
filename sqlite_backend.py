@@ -1,12 +1,9 @@
-from tkinter import *
-import sqlite3
 import os
-import webbrowser 
-from tkinter import ttk
+import sqlite3
 from PyPDF2 import PdfReader
 from datetime import datetime
-from secpage import *
 import subprocess
+
 
 def extract_date_from_pdf(file_path):
     try:
@@ -56,7 +53,8 @@ def update_database():
     conn.commit()
     conn.close()
 
-def query_database():
+def query_database(tree):
+    
     conn = sqlite3.connect(r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database\g3db.db')
     cursor = conn.cursor()
 
@@ -73,8 +71,34 @@ def query_database():
 
     conn.close()
 
+def sort_options_changed(sort_combobox, tree, *args):
+    conn = sqlite3.connect(r'C:\Users\Carl\Documents\SCHOOLWORKS\4Y1ST\DP1\DB_Database\g3db.db')
+    cursor = conn.cursor()
+    selected_option = sort_combobox.get()
 
-def view_selected_pdf(event):
+    
+
+    if selected_option == "by Date (Ascending)":
+        query = "SELECT * FROM pdf_files ORDER BY date ASC"
+    elif selected_option == "by Date (Descending)":
+        query = "SELECT * FROM pdf_files ORDER BY date DESC"
+    elif selected_option == "by Name (Ascending)":
+        query = "SELECT * FROM pdf_files ORDER BY file_name ASC"
+    elif selected_option == "by Name (Descending)":
+        query = "SELECT * FROM pdf_files ORDER BY file_name DESC"
+    
+
+    cursor.execute(query)
+    sorted_data = cursor.fetchall()
+
+    for item in tree.get_children():
+        tree.delete(item)
+
+    for i, row in enumerate(sorted_data, start=1):
+        tree.insert("", "end", values=(row[0], row[1],row[3]))
+
+
+def view_selected_pdf(event, tree):
     # Get the selected item from the Treeview
     selected_item = tree.selection()
     if selected_item:
@@ -94,10 +118,10 @@ def view_selected_pdf(event):
 
 
 
-def search_button_clicked():
+def search_button_clicked(tree):
     #TBC 
-    query_database()
+    query_database(tree)
 
-def update_button_clicked():
+def update_button_clicked(tree):
     update_database()
-    query_database()
+    query_database(tree)
