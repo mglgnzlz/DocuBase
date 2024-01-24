@@ -84,8 +84,6 @@ tree = ttk.Treeview(root, columns=columns, show="headings")
 sort_combobox.set(sort_options[0])
 sort_combobox.bind("<<ComboboxSelected>>", lambda event: sort_options_changed(sort_combobox, tree))
 
-
-
 # Set column headings
 for col in columns:
     tree.heading(col, text=col)

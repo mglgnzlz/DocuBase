@@ -97,25 +97,8 @@ def sort_options_changed(sort_combobox, tree):
 
     conn.close()
 
-def view_selected_pdf(event, tree):
-    # Get the selected item from the Treeview
-    selected_item = tree.selection()
-    if selected_item:
 
-        # Debug line for doublechecking
-        print(f"Selected item values: {tree.item(selected_item, 'values')}")
-        file_path = tree.item(selected_item, 'values')[1] 
-
-        try:
-            # debug lie
-            print(f"Selected PDF file: {file_path}")
-
-            # Open the default PDF viewer on Windows
-            subprocess.Popen(['start', '', file_path], shell=True)
-        except Exception as e:
-            print(f"Error opening PDF file: {e}")
-
-
+#SEARCH BUTTON FUNCTION
 
 def search_button_clicked(tree, search_entry):
     # Get the search keyword from the entry widget
@@ -141,6 +124,7 @@ def update_button_clicked(tree):
     update_database()
     query_database(tree)
     
+#For rename, view, and delete when right click
 
 def show_context_menu(event, tree):
     # Identify the item that was clicked
@@ -161,7 +145,7 @@ def initialize_context_menu(tree):
     context_menu.add_command(label="Delete", command=lambda: delete_selected_file(tree))
     return context_menu
 
-# Add the following functions for delete, rename, and view
+#VIEW FILE
 def view_selected_pdf(tree):
     selected_item = tree.selection()
     if selected_item:
@@ -171,6 +155,7 @@ def view_selected_pdf(tree):
         except Exception as e:
             print(f"Error opening PDF file: {e}")
 
+#RENAMING FILE
 def rename_selected_file(tree):
     selected_item = tree.selection()
     if selected_item:
@@ -197,6 +182,7 @@ def rename_selected_file(tree):
             except Exception as e:
                 print(f"Error renaming file: {e}")
 
+#DELETION OF SELECTED FILE
 def delete_selected_file(tree):
     selected_item = tree.selection()
     if selected_item:
@@ -221,4 +207,3 @@ def delete_selected_file(tree):
                 query_database(tree)
             except Exception as e:
                 print(f"Error deleting file: {e}")
-                
