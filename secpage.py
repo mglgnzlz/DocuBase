@@ -17,8 +17,6 @@ from sqlite_backend import (
     rename_selected_file,
 )
 
-
-
 # Set the current working directory to the script's directory
 script_directory = os.path.dirname(os.path.abspath(r'C:\Users\danica\Docubase\DocuBase'))
 os.chdir(script_directory)
@@ -75,7 +73,6 @@ sort_options = ["by Date (Ascending)", "by Date (Descending)", "by Name (Ascendi
 sort_combobox = ttk.Combobox(searchFrame, values=sort_options, state="readonly")
 sort_combobox.grid(column=1, row=2, padx=(0, 0), pady=(0), sticky=(W, E))
 
-
 # Treeview (Table) with 3 columns 
 columns = ("#", "Document Name", "Date")
 tree = ttk.Treeview(root, columns=columns, show="headings")
@@ -124,11 +121,11 @@ for col in columns:
 updateButton = ttk.Button(root, text="Update", command=update_button_clicked(tree))
 updateButton.grid(column=0, row=3, padx=(20, 20), pady=10, sticky=(N, S, E, W))
 
+# Bind right-click event to show the context menu
+tree.bind("<Button-3>", lambda event: show_context_menu(event, tree))
+
 #Call the update_database function at startup
 update_database()
 query_database(tree)
-
-# Bind right-click event to show the context menu
-tree.bind("<Button-3>", lambda event: show_context_menu(event, tree))
 
 root.mainloop()

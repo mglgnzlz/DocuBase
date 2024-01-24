@@ -29,7 +29,6 @@ def extract_date_from_pdf(file_path):
         print(f"Error extracting date from {file_path}: {e}")
         return None
 
-
 def update_database():
     conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
     cursor = conn.cursor()
@@ -97,9 +96,7 @@ def sort_options_changed(sort_combobox, tree):
 
     conn.close()
 
-
 #SEARCH BUTTON FUNCTION
-
 def search_button_clicked(tree, search_entry):
     # Get the search keyword from the entry widget
     search_keyword = search_entry.get().lower()
@@ -125,7 +122,6 @@ def update_button_clicked(tree):
     query_database(tree)
     
 #For rename, view, and delete when right click
-
 def show_context_menu(event, tree):
     # Identify the item that was clicked
     item_id = tree.identify_row(event.y)
@@ -166,7 +162,7 @@ def rename_selected_file(tree):
         current_name = tree.item(selected_item, 'values')[1]
 
         # Get the new file name using a simple dialog
-        new_name = simpledialog.askstring("Rename File", "Enter a new name:", initialvalue=current_name)
+        new_name = simpledialog.askstring("Rename Document", "Enter a new name:", initialvalue=current_name)
         
         if new_name:
             try:
