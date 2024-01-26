@@ -6,6 +6,17 @@ import subprocess
 from tkinter import Menu, simpledialog, messagebox
 import webbrowser
 
+
+# Set the current working directory to the script's directory
+script_directory = os.path.dirname(os.path.abspath('/home/rpig3/docubase/env/bin/mainProg/DocuBase'))
+os.chdir(script_directory)
+
+print("Current Working Directory:", os.getcwd())
+
+# Path to the database file
+database_path = os.path.join(script_directory, "g3db.db")
+print("Database Path:", database_path)
+
 def extract_date_from_pdf(file_path):
     try:
         with open(file_path, 'rb') as file:
@@ -31,31 +42,36 @@ def extract_date_from_pdf(file_path):
         return None
 
 def update_database():
-    conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+    conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
     cursor = conn.cursor()
 
     # PDF file path
-    folder_path = r'c:\Users\danica\Docubase\DocuBase'
+    folder_path = '/home/rpig3/docubase/env/bin/mainProg/DocuBase'
 
     # Clear table for new values
-    cursor.execute("DELETE FROM pdf_files")
+    cursor.execute(r'DELETE FROM pdf_files')
 
     # Populate table with entries
-    for file_id, file_name in enumerate(os.listdir(folder_path), start=1):
+    table_index = 1  # Initialize the table index
+    for file_name in os.listdir(folder_path):
         if file_name.endswith('.pdf'):
             file_path = os.path.join(folder_path, file_name)
 
             # Extract date from the PDF file
             file_date = extract_date_from_pdf(file_path)
-            cursor.execute("INSERT INTO pdf_files (id, file_name, file_path, date) VALUES (?, ?, ?, ?)",
-                           (file_id, file_name, file_path, file_date))
-            
+            cursor.execute("INSERT INTO pdf_files (file_name, file_path, date) VALUES (?, ?, ?)",
+                           (file_name, file_path, file_date))
+
+            # Increment the table index
+            table_index += 1  
+
     conn.commit()
     conn.close()
 
+
 def query_database(tree):
     
-    conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+    conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
     cursor = conn.cursor()
 
     # Retrieve values from SQLite DB
@@ -72,7 +88,7 @@ def query_database(tree):
     conn.close()
 
 def sort_options_changed(sort_combobox, tree):
-    conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+    conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
     cursor = conn.cursor()
     selected_option = sort_combobox.get()
 
@@ -103,7 +119,7 @@ def search_button_clicked(tree, search_entry):
     search_keyword = search_entry.get().lower()
 
     # Query the database for files containing the search keyword
-    conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+    conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
     cursor = conn.cursor()
     cursor.execute("SELECT id, file_name, date FROM pdf_files WHERE LOWER(file_name) LIKE ?", ('%' + search_keyword + '%',))
     rows = cursor.fetchall()
@@ -149,7 +165,7 @@ def view_selected_pdf(tree):
         file_id = tree.item(selected_item, 'values')[0]
 
         # Fetch the file path from the database using the file ID
-        conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+        conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
         cursor = conn.cursor()
         cursor.execute("SELECT file_path FROM pdf_files WHERE id = ?", (file_id,))
         result = cursor.fetchone()
@@ -181,7 +197,7 @@ def rename_selected_file(tree):
                 tree.item(selected_item, values=(item_id, new_name, tree.item(selected_item, 'values')[2]))
 
                 # Update the database with the new file name
-                conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+                conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
                 cursor = conn.cursor()
                 cursor.execute("UPDATE pdf_files SET file_name = ? WHERE id = ?", (new_name, item_id))
                 conn.commit()
@@ -204,7 +220,7 @@ def delete_selected_file(tree):
                 os.remove(file_path)
 
                 # Update the database by removing the corresponding entry
-                conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+                conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM pdf_files WHERE file_path = ?", (file_path,))
                 conn.commit()

@@ -18,7 +18,7 @@ from sqlite_backend import (
 )
 
 # Set the current working directory to the script's directory
-script_directory = os.path.dirname(os.path.abspath(r'C:\Users\danica\Docubase\DocuBase'))
+script_directory = os.path.dirname(os.path.abspath(r'/home/rpig3/docubase/env/bin/mainProg/DocuBase'))
 os.chdir(script_directory)
 
 print("Current Working Directory:", os.getcwd())
@@ -117,7 +117,7 @@ for col in columns:
     tree.column(col, stretch=True)
 
 #Add an "Update" button to trigger database update
-updateButton = ttk.Button(root, text="Update", command=update_button_clicked(tree))
+updateButton = ttk.Button(root, text="Update", command =update_button_clicked(tree))
 updateButton.grid(column=0, row=3, padx=(20, 20), pady=10, sticky=(N, S, E, W))
 
 # Bind right-click event to show the context menu
