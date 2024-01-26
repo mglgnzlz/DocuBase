@@ -4,6 +4,7 @@ from PyPDF2 import PdfReader
 from datetime import datetime
 import subprocess
 from tkinter import Menu, simpledialog, messagebox
+import webbrowser
 
 def extract_date_from_pdf(file_path):
     try:
@@ -34,7 +35,7 @@ def update_database():
     cursor = conn.cursor()
 
     # PDF file path
-    folder_path = r'C:\Users\danica\Docubase\DocuBase'
+    folder_path = r'c:\Users\danica\Docubase\DocuBase'
 
     # Clear table for new values
     cursor.execute("DELETE FROM pdf_files")
@@ -145,12 +146,22 @@ def initialize_context_menu(tree):
 def view_selected_pdf(tree):
     selected_item = tree.selection()
     if selected_item:
-        file_path = tree.item(selected_item, 'values')[1]
-        try:
-            subprocess.Popen(['start', '', file_path], shell=True)
-        except Exception as e:
-            print(f"Error opening PDF file: {e}")
+        file_id = tree.item(selected_item, 'values')[0]
 
+        # Fetch the file path from the database using the file ID
+        conn = sqlite3.connect(r'C:\Users\danica\Docubase\DocuBase\g3db.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT file_path FROM pdf_files WHERE id = ?", (file_id,))
+        result = cursor.fetchone()
+        conn.close()
+
+        if result:
+            file_path = result[0]
+            try:
+                # Open the PDF file using the default PDF viewer
+                webbrowser.open(file_path)
+            except Exception as e:
+                print(f"Error opening PDF file: {e}")
 #RENAMING FILE
 def rename_selected_file(tree):
     selected_item = tree.selection()

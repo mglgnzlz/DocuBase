@@ -33,7 +33,6 @@ try:
     cursor = conn.cursor()
     print("Connected to the database")
 
-    # Continue with the rest of your code...
 except Exception as e:
     print("Error:", e)
 finally:
@@ -87,7 +86,7 @@ for col in columns:
 
 # Place the Treeview in the grid
 tree.grid(column=0, row=2, sticky=(N, S, E, W), padx=(20, 20), pady=(20, 20))
-tree.bind('<ButtonRelease-1>', lambda event: view_selected_pdf(event, tree))
+tree.bind('<ButtonRelease-1>', lambda event: view_selected_pdf(tree))
 
 # Add a vertical scroll
 scrollbar = ttk.Scrollbar(root, orient=VERTICAL, command=tree.yview)
