@@ -8,7 +8,7 @@ import webbrowser
 
 
 # Set the current working directory to the script's directory
-script_directory = os.path.dirname(os.path.abspath('/home/rpig3/docubase/env/bin/mainProg/DocuBase'))
+script_directory = os.path.dirname(os.path.abspath('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db'))
 os.chdir(script_directory)
 
 print("Current Working Directory:", os.getcwd())
@@ -179,6 +179,25 @@ def view_selected_pdf(tree):
             except Exception as e:
                 print(f"Error opening PDF file: {e}")
 #RENAMING FILE
+
+
+def rename_file_on_disk(old_file_path, new_name):
+    try:
+        # Extract the directory and extension from the old file path
+        directory, old_file_name = os.path.split(old_file_path)
+        file_name, file_extension = os.path.splitext(old_file_name)
+
+        # Create the new file path by combining the directory, new name, and extension
+        new_file_path = os.path.join(directory, f"{new_name}{file_extension}")
+
+        # Rename the file on disk
+        os.rename(old_file_path, new_file_path)
+
+        return new_file_path  # Return the new file path after renaming
+    except Exception as e:
+        print(f"Error renaming file on disk: {e}")
+        return None
+        
 def rename_selected_file(tree):
     selected_item = tree.selection()
     if selected_item:
@@ -190,7 +209,7 @@ def rename_selected_file(tree):
 
         # Get the new file name using a simple dialog
         new_name = simpledialog.askstring("Rename Document", "Enter a new name:", initialvalue=current_name)
-        
+
         if new_name:
             try:
                 # Update the tree with the new name
@@ -202,27 +221,41 @@ def rename_selected_file(tree):
                 cursor.execute("UPDATE pdf_files SET file_name = ? WHERE id = ?", (new_name, item_id))
                 conn.commit()
                 conn.close()
+
+                # Rename the file on disk
+                old_file_path = os.path.join(script_directory, current_name)  # Fix the old_file_path
+                new_file_path = rename_file_on_disk(old_file_path, new_name)
+
+                if new_file_path:
+                    # Repopulate the tree with the latest data
+                    query_database(tree)
+                else:
+                    print(f"Error renaming file on disk: {old_file_path} -> {new_name}")
+                
             except Exception as e:
                 print(f"Error renaming file: {e}")
+
+
 
 #DELETION OF SELECTED FILE
 def delete_selected_file(tree):
     selected_item = tree.selection()
     if selected_item:
         file_path = tree.item(selected_item, 'values')[1]
+        new_file_path = os.path.join(script_directory, f"{file_path}")
 
         # Display a confirmation dialog before deletion
-        confirmation = messagebox.askyesno("Confirm Deletion", f"Do you want to delete the file:\n{file_path}?")
+        confirmation = messagebox.askyesno("Confirm Deletion", f"Do you want to delete the file:\n{file_path}?", parent=tree.winfo_toplevel())
         
         if confirmation:
             try:
                 # Delete the file
-                os.remove(file_path)
+                os.remove(new_file_path)
 
                 # Update the database by removing the corresponding entry
                 conn = sqlite3.connect('/home/rpig3/docubase/env/bin/mainProg/DocuBase/g3db.db')
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM pdf_files WHERE file_path = ?", (file_path,))
+                cursor.execute("DELETE FROM pdf_files WHERE file_path = ?", (new_file_path,))
                 conn.commit()
                 conn.close()
 
@@ -230,4 +263,3 @@ def delete_selected_file(tree):
                 query_database(tree)
             except Exception as e:
                 print(f"Error deleting file: {e}")
-

@@ -144,4 +144,3 @@ def open_secpage_window():
     query_database(tree)
 
     root.mainloop()
-
